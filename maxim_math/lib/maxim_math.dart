@@ -108,7 +108,11 @@ class _MaximMathState extends State<MaximMath>
     });
     _generateQuestion();
     _startTimer();
-    Provider.of<RewardProvider>(context, listen: false).recordGamePlayed();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Provider.of<RewardProvider>(context, listen: false).recordGamePlayed();
+      }
+    });
   }
 
   void _startTimer() {
@@ -192,10 +196,32 @@ class _MaximMathState extends State<MaximMath>
 
     // Generate options with distinct values
     double targetVal = 10.0 + _random.nextDouble() * 90.0;
+    String measCategory = '';
+    List<String> selectedUnits = [];
+
     if (currentTopic == GameId.fractions) {
       targetVal = 0.2 + _random.nextDouble() * 2.5;
     } else if (currentTopic == GameId.measurement) {
-      targetVal = 5.0 + _random.nextDouble() * 1500.0;
+      final cats = ['length', 'mass', 'volume', 'time'];
+      measCategory = cats[_random.nextInt(cats.length)];
+      
+      List<String> units = [];
+      if (measCategory == 'length') {
+        units = ['m', 'cm', 'mm', 'km'];
+        targetVal = 50.0 + _random.nextDouble() * 1950.0;
+      } else if (measCategory == 'mass') {
+        units = ['t', 'kg', 'g', 'mg'];
+        targetVal = 10000.0 + _random.nextDouble() * 990000.0;
+      } else if (measCategory == 'volume') {
+        units = ['kL', 'L', 'dL', 'mL'];
+        targetVal = 10.0 + _random.nextDouble() * 990.0;
+      } else { // time
+        units = ['days', 'hours', 'mins', 'secs'];
+        targetVal = 60.0 + _random.nextDouble() * 2820.0;
+      }
+      
+      units.shuffle(_random);
+      selectedUnits = units.sublist(0, _numOptions);
     } else if (currentTopic == GameId.decimalsArithmetic) {
       targetVal = 5.0 + _random.nextDouble() * 45.0;
     } else if (currentTopic == GameId.powersRoots) {
@@ -212,7 +238,11 @@ class _MaximMathState extends State<MaximMath>
             0.70 + _random.nextDouble() * 0.60; // 70% to 130% of target
         final optionTarget = targetVal * varianceFactor;
 
-        expr = _generateExpressionForTopic(currentTopic, optionTarget);
+        if (currentTopic == GameId.measurement) {
+          expr = _genMeasurementWithUnit(measCategory, selectedUnits[i], optionTarget);
+        } else {
+          expr = _generateExpressionForTopic(currentTopic, optionTarget);
+        }
         val = _evaluateExpression(currentTopic, expr);
         attempts++;
       } while ((_values.any((v) => (v - val).abs() < 0.005) || val <= 0) &&
@@ -408,6 +438,68 @@ class _MaximMathState extends State<MaximMath>
     }
   }
 
+  String _genMeasurementWithUnit(String cat, String unit, double targetVal) {
+    double val = targetVal;
+    switch (unit) {
+      // Length
+      case 'km':
+        val = targetVal / 1000.0;
+        break;
+      case 'cm':
+        val = targetVal * 100.0;
+        break;
+      case 'mm':
+        val = targetVal * 1000.0;
+        break;
+      case 'm':
+        val = targetVal;
+        break;
+
+      // Mass
+      case 't':
+        val = targetVal / 1000000.0;
+        break;
+      case 'kg':
+        val = targetVal / 1000.0;
+        break;
+      case 'g':
+        val = targetVal;
+        break;
+      case 'mg':
+        val = targetVal * 1000.0;
+        break;
+
+      // Volume
+      case 'kL':
+        val = targetVal / 1000.0;
+        break;
+      case 'L':
+        val = targetVal;
+        break;
+      case 'dL':
+        val = targetVal * 10.0;
+        break;
+      case 'mL':
+        val = targetVal * 1000.0;
+        break;
+
+      // Time
+      case 'days':
+        val = targetVal / 1440.0;
+        break;
+      case 'hours':
+        val = targetVal / 60.0;
+        break;
+      case 'mins':
+        val = targetVal;
+        break;
+      case 'secs':
+        val = targetVal * 60.0;
+        break;
+    }
+    return '${_formatDouble(val)} $unit';
+  }
+
   double _evaluateMeasurement(String s) {
     final parts = s.split(' ');
     if (parts.length < 2) return 0;
@@ -422,16 +514,24 @@ class _MaximMathState extends State<MaximMath>
         return val / 100.0;
       case 'mm':
         return val / 1000.0;
+      case 't':
+        return val * 1000000.0;
       case 'kg':
         return val * 1000.0;
       case 'g':
         return val;
       case 'mg':
         return val / 1000.0;
+      case 'kL':
+        return val * 1000.0;
       case 'L':
         return val;
+      case 'dL':
+        return val / 10.0;
       case 'mL':
         return val / 1000.0;
+      case 'days':
+        return val * 1440.0;
       case 'hours':
         return val * 60.0;
       case 'mins':
@@ -969,12 +1069,6 @@ class _MaximMathState extends State<MaximMath>
       fontWeight: FontWeight.w800,
       color: AppTheme.textPrimary,
     );
-    final sub = TextStyle(
-      color: color.withOpacity(0.8),
-      fontSize: 11,
-      fontWeight: FontWeight.w700,
-      letterSpacing: 0.8,
-    );
 
     // Fractions
     if (expr.contains('/')) {
@@ -990,8 +1084,6 @@ class _MaximMathState extends State<MaximMath>
             color: AppTheme.textPrimary,
           ),
           Text(p[1], style: ts),
-          const SizedBox(height: 6),
-          Text('FRACTION', style: sub),
         ],
       );
     }
@@ -1014,8 +1106,6 @@ class _MaximMathState extends State<MaximMath>
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text('POWER', style: sub),
         ],
       );
     }
@@ -1028,8 +1118,6 @@ class _MaximMathState extends State<MaximMath>
         children: [
           Text(p[0], style: ts.copyWith(fontSize: 20)),
           Text('of ${p[2]}', style: ts.copyWith(fontSize: 14)),
-          const SizedBox(height: 8),
-          Text('PERCENT', style: sub),
         ],
       );
     }
@@ -1050,25 +1138,16 @@ class _MaximMathState extends State<MaximMath>
               Text(inside, style: ts),
             ],
           ),
-          const SizedBox(height: 8),
-          Text('ROOT', style: sub),
         ],
       );
     }
 
     // Measurement
-    if (expr.contains(' km') ||
-        expr.contains(' m') ||
-        expr.contains(' cm') ||
-        expr.contains(' mm') ||
-        expr.contains(' kg') ||
-        expr.contains(' g') ||
-        expr.contains(' mg') ||
-        expr.contains(' L') ||
-        expr.contains(' mL') ||
-        expr.contains(' hours') ||
-        expr.contains(' mins') ||
-        expr.contains(' secs')) {
+    final measUnits = [
+      'km', 'm', 'cm', 'mm', 't', 'kg', 'g', 'mg',
+      'kL', 'L', 'dL', 'mL', 'days', 'hours', 'mins', 'secs'
+    ];
+    if (measUnits.any((u) => expr.endsWith(' $u'))) {
       final parts = expr.split(' ');
       return Column(
         mainAxisSize: MainAxisSize.min,
@@ -1078,8 +1157,6 @@ class _MaximMathState extends State<MaximMath>
             parts.sublist(1).join(' '),
             style: ts.copyWith(fontSize: 16, color: color),
           ),
-          const SizedBox(height: 8),
-          Text('MEASURE', style: sub),
         ],
       );
     }
@@ -1097,8 +1174,6 @@ class _MaximMathState extends State<MaximMath>
           Text(parts[0], style: ts.copyWith(fontSize: 18)),
           Text(parts[1], style: ts.copyWith(fontSize: 20, color: color)),
           Text(parts[2], style: ts.copyWith(fontSize: 18)),
-          const SizedBox(height: 6),
-          Text('EXPRESSION', style: sub),
         ],
       );
     }
