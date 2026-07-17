@@ -5,8 +5,9 @@ import 'dart:math' as math;
 class _Tone {
   final double frequency;
   final double duration;
-  final bool isBuzzer;
-  _Tone(this.frequency, this.duration, {this.isBuzzer = false});
+  final double volume;
+
+  _Tone(this.frequency, this.duration, {required this.volume});
 }
 
 class AudioManager {
@@ -57,9 +58,7 @@ class AudioManager {
 
   static Future<File> _writeWavFile(String path, List<int> bytes) async {
     final file = File(path);
-    if (!await file.exists()) {
-      await file.writeAsBytes(bytes);
-    }
+    await file.writeAsBytes(bytes);
     return file;
   }
 
@@ -91,63 +90,77 @@ class AudioManager {
   static void playGameOver() => _playSound('gameover');
   static void playStreak() => _playSound('streak');
 
-  // WAV Synthesizer Tones
+  // WAV Synthesizer Tones (44.1kHz, Stereo, 70% Sine + 30% Triangle)
   static List<int> _generateCorrectTones() {
     return _synthesizeSequence([
-      _Tone(523.25, 0.08), // C5
-      _Tone(659.25, 0.14), // E5
+      _Tone(523.25, 0.10, volume: 0.40), // C5
+      _Tone(659.25, 0.15, volume: 0.40), // E5
     ]);
   }
 
   static List<int> _generateWrongTones() {
     return _synthesizeSequence([
-      _Tone(135.0, 0.22, isBuzzer: true), // Low buzzer buzz
+      _Tone(349.23, 0.12, volume: 0.35), // F4
+      _Tone(293.66, 0.18, volume: 0.35), // D4
     ]);
   }
 
   static List<int> _generateCoinTones() {
     return _synthesizeSequence([
-      _Tone(987.77, 0.06), // B5
-      _Tone(1318.51, 0.16), // E6
+      _Tone(987.77, 0.08, volume: 0.45), // B5
+      _Tone(1318.51, 0.12, volume: 0.45), // E6
     ]);
   }
 
   static List<int> _generateLevelUpTones() {
     return _synthesizeSequence([
-      _Tone(261.63, 0.07), // C4
-      _Tone(329.63, 0.07), // E4
-      _Tone(392.00, 0.07), // G4
-      _Tone(523.25, 0.20), // C5
+      _Tone(261.63, 0.10, volume: 0.50), // C4
+      _Tone(329.63, 0.10, volume: 0.50), // E4
+      _Tone(392.00, 0.10, volume: 0.50), // G4
+      _Tone(523.25, 0.20, volume: 0.50), // C5
     ]);
   }
 
   static List<int> _generateGameOverTones() {
     return _synthesizeSequence([
-      _Tone(392.00, 0.12), // G4
-      _Tone(349.23, 0.12), // F4
-      _Tone(311.13, 0.12), // Eb4
-      _Tone(233.08, 0.32, isBuzzer: true), // Bb3 buzzer
+      _Tone(392.00, 0.12, volume: 0.35), // G4
+      _Tone(349.23, 0.12, volume: 0.35), // F4
+      _Tone(311.13, 0.12, volume: 0.35), // Eb4
+      _Tone(233.08, 0.24, volume: 0.35), // Bb3
     ]);
   }
 
   static List<int> _generateStreakTones() {
     return _synthesizeSequence([
-      _Tone(659.25, 0.06), // E5
-      _Tone(783.99, 0.06), // G5
-      _Tone(1046.50, 0.18), // C6
+      _Tone(659.25, 0.08, volume: 0.50), // E5
+      _Tone(783.99, 0.08, volume: 0.50), // G5
+      _Tone(1046.50, 0.14, volume: 0.50), // C6
     ]);
+  }
+
+  static double _triangleWave(double t, double freq) {
+    final period = 1.0 / freq;
+    final relativeT = t % period;
+    final ratio = relativeT / period;
+    if (ratio < 0.25) {
+      return ratio * 4.0;
+    } else if (ratio < 0.75) {
+      return 2.0 - ratio * 4.0;
+    } else {
+      return ratio * 4.0 - 4.0;
+    }
   }
 
   static List<int> _synthesizeSequence(
     List<_Tone> tones, {
-    int sampleRate = 22050,
+    int sampleRate = 44100,
   }) {
     int totalSamples = 0;
     for (final tone in tones) {
       totalSamples += (sampleRate * tone.duration).toInt();
     }
 
-    final dataSize = totalSamples * 2;
+    final dataSize = totalSamples * 4;
     final fileSize = 44 + dataSize;
 
     final header = ByteData(44);
@@ -165,12 +178,12 @@ class AudioManager {
     header.setUint8(14, 0x74); // t
     header.setUint8(15, 0x20); // space
     header.setUint32(16, 16, Endian.little);
-    header.setUint16(20, 1, Endian.little);
-    header.setUint16(22, 1, Endian.little);
+    header.setUint16(20, 1, Endian.little); // Format: PCM
+    header.setUint16(22, 2, Endian.little); // Stereo (2 channels)
     header.setUint32(24, sampleRate, Endian.little);
-    header.setUint32(28, sampleRate * 2, Endian.little);
-    header.setUint16(32, 2, Endian.little);
-    header.setUint16(34, 16, Endian.little);
+    header.setUint32(28, sampleRate * 4, Endian.little); // ByteRate
+    header.setUint16(32, 4, Endian.little); // BlockAlign
+    header.setUint16(34, 16, Endian.little); // BitsPerSample
     header.setUint8(36, 0x64); // d
     header.setUint8(37, 0x61); // a
     header.setUint8(38, 0x74); // t
@@ -189,25 +202,25 @@ class AudioManager {
         final t = i / sampleRate;
         double envelope = 1.0;
         if (t < 0.005) {
-          envelope = t / 0.005;
-        } else if (t > tone.duration - 0.015) {
-          envelope = (tone.duration - t) / 0.015;
+          envelope = t / 0.005; // 5ms fade-in
+        } else if (t > tone.duration - 0.010) {
+          envelope = (tone.duration - t) / 0.010; // 10ms fade-out
         }
+        if (envelope < 0) envelope = 0;
 
-        double waveValue;
-        if (tone.isBuzzer) {
-          final double valSine = math.sin(2 * math.pi * tone.frequency * t);
-          final double valSquare = valSine >= 0 ? 1.0 : -1.0;
-          waveValue = 0.7 * valSquare + 0.3 * valSine;
-        } else {
-          waveValue = math.sin(2 * math.pi * tone.frequency * t);
-        }
+        final sineVal = math.sin(2 * math.pi * tone.frequency * t);
+        final triVal = _triangleWave(t, tone.frequency);
+        final waveValue = 0.7 * sineVal + 0.3 * triVal;
 
-        final sample = (waveValue * 32767 * envelope * 0.35).toInt().clamp(
+        final sample = (waveValue * 32767 * envelope * tone.volume).toInt().clamp(
           -32768,
           32767,
         );
-        dataView.setInt16((sampleOffset + i) * 2, sample, Endian.little);
+
+        // Write Left Channel
+        dataView.setInt16((sampleOffset + i) * 4, sample, Endian.little);
+        // Write Right Channel
+        dataView.setInt16((sampleOffset + i) * 4 + 2, sample, Endian.little);
       }
       sampleOffset += toneSamples;
     }

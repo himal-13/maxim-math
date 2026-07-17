@@ -76,6 +76,48 @@ class _MathDashboardState extends State<MathDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    final basicTopics = [
+      _TopicInfo(
+        id: GameId.basicOps,
+        title: 'Basic Ops',
+        icon: Icons.calculate_rounded,
+        color: AppTheme.accentTeal,
+      ),
+      _TopicInfo(
+        id: GameId.fractions,
+        title: 'Fractions',
+        icon: Icons.pie_chart_rounded,
+        color: AppTheme.accentViolet,
+      ),
+      _TopicInfo(
+        id: GameId.decimalsArithmetic,
+        title: 'Decimals',
+        icon: Icons.numbers_rounded,
+        color: AppTheme.accentCoral,
+      ),
+    ];
+
+    final advanceTopics = [
+      _TopicInfo(
+        id: GameId.percentages,
+        title: 'Percent',
+        icon: Icons.percent_rounded,
+        color: AppTheme.accentTeal,
+      ),
+      _TopicInfo(
+        id: GameId.powersRoots,
+        title: 'Powers',
+        icon: Icons.superscript_rounded,
+        color: AppTheme.accentMint,
+      ),
+      _TopicInfo(
+        id: GameId.infinity,
+        title: 'Infinity',
+        icon: Icons.all_inclusive_rounded,
+        color: AppTheme.accentPink,
+      ),
+    ];
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: Container(
@@ -94,11 +136,9 @@ class _MathDashboardState extends State<MathDashboard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildHeader(),
-                      const SizedBox(height: 24),
-                      _buildInfinityCard(),
                       const SizedBox(height: 32),
                       const Text(
-                        'TOPIC CHAMPIONSHIPS',
+                        'BASIC MODE',
                         style: TextStyle(
                           color: AppTheme.textSecondary,
                           fontSize: 13,
@@ -107,7 +147,35 @@ class _MathDashboardState extends State<MathDashboard> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      _buildTopicGrid(),
+                      Row(
+                        children: [
+                          Expanded(child: _buildSmallTopicItem(basicTopics[0])),
+                          const SizedBox(width: 10),
+                          Expanded(child: _buildSmallTopicItem(basicTopics[1])),
+                          const SizedBox(width: 10),
+                          Expanded(child: _buildSmallTopicItem(basicTopics[2])),
+                        ],
+                      ),
+                      const SizedBox(height: 32),
+                      const Text(
+                        'ADVANCE MODE',
+                        style: TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(child: _buildSmallTopicItem(advanceTopics[0])),
+                          const SizedBox(width: 10),
+                          Expanded(child: _buildSmallTopicItem(advanceTopics[1])),
+                          const SizedBox(width: 10),
+                          Expanded(child: _buildSmallTopicItem(advanceTopics[2])),
+                        ],
+                      ),
                       const SizedBox(height: 30),
                     ],
                   ),
@@ -253,339 +321,55 @@ class _MathDashboardState extends State<MathDashboard> {
     );
   }
 
-  Widget _buildInfinityCard() {
-    final sp = Provider.of<ScoreProvider>(context);
-    final highscore = sp.getHighScore(GameId.infinity);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppTheme.accentViolet.withOpacity(0.18),
-            AppTheme.accentTeal.withOpacity(0.18),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: AppTheme.accentViolet.withOpacity(0.35),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.accentViolet.withOpacity(0.1),
-            blurRadius: 15,
-            spreadRadius: 2,
+  Widget _buildSmallTopicItem(_TopicInfo topic) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MaximMath(topicId: topic.id),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: AppTheme.accentViolet.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppTheme.accentViolet.withOpacity(0.4),
-                  ),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.all_inclusive_rounded,
-                      color: AppTheme.accentViolet,
-                      size: 16,
-                    ),
-                    SizedBox(width: 6),
-                    Text(
-                      'ENDLESS MODE',
-                      style: TextStyle(
-                        color: AppTheme.accentViolet,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.0,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.emoji_events_rounded,
-                    color: AppTheme.gold,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Best Score: $highscore',
-                    style: const TextStyle(
-                      color: AppTheme.gold,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          const Text(
-            'INFINITY DUEL',
-            style: TextStyle(
-              color: AppTheme.textPrimary,
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Combine all math topics (Fractions, Decimals, Measurements, Percentages, and Powers) into a single ultimate challenge. Level up as you progress!',
-            style: TextStyle(
-              color: AppTheme.textSecondary,
-              fontSize: 13,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 24),
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      const MaximMath(topicId: GameId.infinity),
-                ),
-              );
-            },
-            child: Container(
-              height: 50,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                gradient: AppTheme.tealGradient(),
-                borderRadius: BorderRadius.circular(25),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.accentTeal.withOpacity(0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.play_arrow_rounded, color: Colors.white),
-                  SizedBox(width: 6),
-                  Text(
-                    'PLAY INFINITY DUEL',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTopicGrid() {
-    final topics = [
-      _TopicInfo(
-        id: GameId.fractions,
-        title: 'Fractions Duel',
-        desc: 'Compare and rank fractions.',
-        icon: Icons.pie_chart_rounded,
-        color: AppTheme.accentViolet,
-      ),
-      _TopicInfo(
-        id: GameId.percentages,
-        title: 'Percentages',
-        desc: 'Calculate percentages of bases.',
-        icon: Icons.percent_rounded,
-        color: AppTheme.accentTeal,
-      ),
-      _TopicInfo(
-        id: GameId.powersRoots,
-        title: 'Powers & Roots',
-        desc: 'Evaluate exponents & square roots.',
-        icon: Icons.superscript_rounded,
-        color: AppTheme.accentMint,
-      ),
-      _TopicInfo(
-        id: GameId.measurement,
-        title: 'Measurement',
-        desc: 'Compare Length, Weight, & Time.',
-        icon: Icons.square_foot_rounded,
-        color: AppTheme.accentAmber,
-      ),
-      _TopicInfo(
-        id: GameId.decimalsArithmetic,
-        title: 'Decimals & Ops',
-        desc: 'Solve simple math expressions.',
-        icon: Icons.calculate_rounded,
-        color: AppTheme.accentCoral,
-      ),
-    ];
-
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: topics.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 14),
-      itemBuilder: (context, index) {
-        return _buildTopicCard(topics[index]);
+        );
       },
-    );
-  }
-
-  Widget _buildTopicCard(_TopicInfo topic) {
-    final rp = Provider.of<RewardProvider>(context);
-    final sp = Provider.of<ScoreProvider>(context);
-
-    final level = rp.getTopicLevel(topic.id);
-    final bestScore = sp.getHighScore(topic.id);
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: AppTheme.glassCard(
-        borderColor: topic.color.withOpacity(0.2),
-        radius: 20,
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 54,
-            height: 54,
-            decoration: BoxDecoration(
-              color: topic.color.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: topic.color.withOpacity(0.35)),
+      child: Container(
+        height: 110,
+        decoration: AppTheme.glassCard(
+          borderColor: topic.color.withOpacity(0.2),
+          radius: 20,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: topic.color.withOpacity(0.12),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: topic.color.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Icon(
+                topic.icon,
+                color: topic.color,
+                size: 22,
+              ),
             ),
-            child: Icon(topic.icon, color: topic.color, size: 28),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      topic.title,
-                      style: const TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: topic.color.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: topic.color.withOpacity(0.3)),
-                      ),
-                      child: Text(
-                        'Level $level',
-                        style: TextStyle(
-                          color: topic.color,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  topic.desc,
-                  style: const TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Best Score: $bestScore',
-                      style: const TextStyle(
-                        color: AppTheme.textHint,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => MaximMath(topicId: topic.id),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: topic.color,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.play_arrow_rounded,
-                              color: Colors.white,
-                              size: 14,
-                            ),
-                            SizedBox(width: 4),
-                            Text(
-                              'PLAY',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+            const SizedBox(height: 10),
+            Text(
+              topic.title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.2,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -751,14 +535,12 @@ class _GemExchangeDialogState extends State<GemExchangeDialog> {
 class _TopicInfo {
   final String id;
   final String title;
-  final String desc;
   final IconData icon;
   final Color color;
 
   _TopicInfo({
     required this.id,
     required this.title,
-    required this.desc,
     required this.icon,
     required this.color,
   });

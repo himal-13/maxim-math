@@ -9,6 +9,7 @@ class GameId {
   static const String powersRoots = 'powers_roots';
   static const String measurement = 'measurement';
   static const String decimalsArithmetic = 'decimals_arithmetic';
+  static const String basicOps = 'basic_ops';
 }
 
 class ScoreProvider extends ChangeNotifier {

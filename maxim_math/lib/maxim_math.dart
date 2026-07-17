@@ -22,6 +22,7 @@ class _MaximMathState extends State<MaximMath>
   bool _isGameOver = false;
   bool _levelCompleted = false;
   bool _showBuyAttemptsDialog = false;
+  int? _selectedIndex;
 
   int _score = 0;
   int _attemptsLeft = 5;
@@ -99,6 +100,7 @@ class _MaximMathState extends State<MaximMath>
       _correctAnswersTotal = 0;
       _timeLeft = 10;
       _feedback = null;
+      _selectedIndex = null;
       if (!_isInfinityMode) {
         final rp = Provider.of<RewardProvider>(context, listen: false);
         _currentLevel = rp.getTopicLevel(widget.topicId);
@@ -148,6 +150,7 @@ class _MaximMathState extends State<MaximMath>
       _streak = 0;
       _feedback = 'Too slow!';
       _feedbackCorrect = false;
+      _selectedIndex = null;
 
       if (_attemptsLeft <= 0) {
         _showBuyAttemptsDialog = true;
@@ -159,6 +162,7 @@ class _MaximMathState extends State<MaximMath>
       if (mounted && _isGameActive && !_isGameOver && !_showBuyAttemptsDialog) {
         setState(() {
           _feedback = null;
+          _selectedIndex = null;
           _timeLeft = 10;
         });
         _generateQuestion();
@@ -185,10 +189,10 @@ class _MaximMathState extends State<MaximMath>
     String currentTopic = widget.topicId;
     if (_isInfinityMode) {
       final topics = [
+        GameId.basicOps,
         GameId.fractions,
         GameId.percentages,
         GameId.powersRoots,
-        GameId.measurement,
         GameId.decimalsArithmetic,
       ];
       currentTopic = topics[_random.nextInt(topics.length)];
@@ -201,6 +205,8 @@ class _MaximMathState extends State<MaximMath>
 
     if (currentTopic == GameId.fractions) {
       targetVal = 0.2 + _random.nextDouble() * 2.5;
+    } else if (currentTopic == GameId.basicOps) {
+      targetVal = 10.0 + _random.nextDouble() * 90.0;
     } else if (currentTopic == GameId.measurement) {
       final cats = ['length', 'mass', 'volume', 'time'];
       measCategory = cats[_random.nextInt(cats.length)];
@@ -270,6 +276,8 @@ class _MaximMathState extends State<MaximMath>
 
   String _generateExpressionForTopic(String topic, double target) {
     switch (topic) {
+      case GameId.basicOps:
+        return _genBasicOps(target);
       case GameId.fractions:
         return _genFraction(target);
       case GameId.percentages:
@@ -289,6 +297,8 @@ class _MaximMathState extends State<MaximMath>
 
   double _evaluateExpression(String topic, String expr) {
     switch (topic) {
+      case GameId.basicOps:
+        return _evaluateArithmetic(expr);
       case GameId.fractions:
         return _evaluateFraction(expr);
       case GameId.percentages:
@@ -568,6 +578,33 @@ class _MaximMathState extends State<MaximMath>
     }
   }
 
+  String _genBasicOps(double targetVal) {
+    final target = targetVal.round().clamp(5, 100);
+    final ops = ['+', '-', '*', '/'];
+    final op = ops[_random.nextInt(ops.length)];
+    switch (op) {
+      case '+':
+        final a = 1 + _random.nextInt(target - 1);
+        final b = target - a;
+        return '$a + $b';
+      case '-':
+        final b = 2 + _random.nextInt(50);
+        final a = target + b;
+        return '$a - $b';
+      case '*':
+        final maxA = target > 50 ? 12 : 9;
+        final a = 2 + _random.nextInt(maxA - 1);
+        final b = (target / a).round().clamp(2, 20);
+        return '$a * $b';
+      case '/':
+        final b = 2 + _random.nextInt(9);
+        final a = target * b;
+        return '$a / $b';
+      default:
+        return '$target';
+    }
+  }
+
   double _evaluateArithmetic(String s) {
     if (s.contains('+')) {
       final parts = s.split('+');
@@ -601,9 +638,14 @@ class _MaximMathState extends State<MaximMath>
     if (!_isGameActive ||
         _isGameOver ||
         _levelCompleted ||
-        _showBuyAttemptsDialog)
+        _showBuyAttemptsDialog ||
+        _selectedIndex != null)
       return;
     _stopAllTimers();
+
+    setState(() {
+      _selectedIndex = index;
+    });
 
     if (index == _correctIndex) {
       AudioManager.playCorrect();
@@ -650,6 +692,7 @@ class _MaximMathState extends State<MaximMath>
           !_showBuyAttemptsDialog) {
         setState(() {
           _feedback = null;
+          _selectedIndex = null;
           _timeLeft = 10;
         });
         _generateQuestion();
@@ -689,6 +732,7 @@ class _MaximMathState extends State<MaximMath>
         _attemptsLeft = 3;
         _showBuyAttemptsDialog = false;
         _feedback = null;
+        _selectedIndex = null;
         _timeLeft = 10;
       });
       _generateQuestion();
@@ -893,16 +937,33 @@ class _MaximMathState extends State<MaximMath>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               // Attempts Display
-              Row(
-                children: List.generate(5, (index) {
-                  return Icon(
-                    index < _attemptsLeft
-                        ? Icons.favorite_rounded
-                        : Icons.favorite_border_rounded,
-                    color: AppTheme.accentCoral,
-                    size: 20,
-                  );
-                }),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentCoral.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.accentCoral.withOpacity(0.25)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.favorite_rounded,
+                      color: AppTheme.accentCoral,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '$_attemptsLeft LIFE',
+                      style: const TextStyle(
+                        color: AppTheme.accentCoral,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               // Timer Display
               Row(
@@ -1033,7 +1094,6 @@ class _MaximMathState extends State<MaximMath>
   Widget _buildCard(int i) {
     if (i >= _numbers.length) return const SizedBox();
 
-    // Choose beautiful eye-pleasing topic-specific colors
     final colors = [
       AppTheme.accentTeal,
       AppTheme.accentViolet,
@@ -1042,143 +1102,13 @@ class _MaximMathState extends State<MaximMath>
     ];
     final color = colors[i % colors.length];
 
-    return GestureDetector(
+    return MathOptionCard(
+      expr: _numbers[i],
+      color: color,
       onTap: () => _handleChoice(i),
-      child: Container(
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withOpacity(0.4), width: 1.5),
-          boxShadow: [
-            BoxShadow(color: color.withOpacity(0.08), blurRadius: 10),
-          ],
-        ),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: _buildNumberText(_numbers[i], color),
-          ),
-        ),
-      ),
+      isSelected: _selectedIndex == i,
+      isCorrect: _selectedIndex == null ? null : (i == _correctIndex),
     );
-  }
-
-  Widget _buildNumberText(String expr, Color color) {
-    final ts = const TextStyle(
-      fontSize: 24,
-      fontWeight: FontWeight.w800,
-      color: AppTheme.textPrimary,
-    );
-
-    // Fractions
-    if (expr.contains('/')) {
-      final p = expr.split('/');
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(p[0], style: ts),
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 4),
-            width: 32,
-            height: 2,
-            color: AppTheme.textPrimary,
-          ),
-          Text(p[1], style: ts),
-        ],
-      );
-    }
-
-    // Powers
-    if (expr.contains('^')) {
-      final p = expr.split('^');
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(p[0], style: ts),
-              Transform.translate(
-                offset: const Offset(1, -10),
-                child: Text(p[1], style: ts.copyWith(fontSize: 15)),
-              ),
-            ],
-          ),
-        ],
-      );
-    }
-
-    // Percentages
-    if (expr.contains('%')) {
-      final p = expr.split(' ');
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(p[0], style: ts.copyWith(fontSize: 20)),
-          Text('of ${p[2]}', style: ts.copyWith(fontSize: 14)),
-        ],
-      );
-    }
-
-    // Roots
-    if (expr.contains('√')) {
-      final idx = expr.indexOf('√');
-      final coef = expr.substring(0, idx);
-      final inside = expr.substring(idx + 1);
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (coef != '1') Text(coef, style: ts),
-              Text('√', style: ts.copyWith(fontSize: 28)),
-              Text(inside, style: ts),
-            ],
-          ),
-        ],
-      );
-    }
-
-    // Measurement
-    final measUnits = [
-      'km', 'm', 'cm', 'mm', 't', 'kg', 'g', 'mg',
-      'kL', 'L', 'dL', 'mL', 'days', 'hours', 'mins', 'secs'
-    ];
-    if (measUnits.any((u) => expr.endsWith(' $u'))) {
-      final parts = expr.split(' ');
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(parts[0], style: ts),
-          Text(
-            parts.sublist(1).join(' '),
-            style: ts.copyWith(fontSize: 16, color: color),
-          ),
-        ],
-      );
-    }
-
-    // Arithmetic / Equations
-    if (expr.contains('+') ||
-        expr.contains('-') ||
-        expr.contains('*') ||
-        expr.contains('/')) {
-      // Split into parts to display beautifully
-      final parts = expr.split(' ');
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(parts[0], style: ts.copyWith(fontSize: 18)),
-          Text(parts[1], style: ts.copyWith(fontSize: 20, color: color)),
-          Text(parts[2], style: ts.copyWith(fontSize: 18)),
-        ],
-      );
-    }
-
-    return Text(expr, style: ts);
   }
 
   Widget _buildFeedback() {
@@ -1381,7 +1311,7 @@ class _MaximMathState extends State<MaximMath>
               ),
               const SizedBox(height: 20),
               const Text(
-                'OUT OF ATTEMPTS!',
+                'OUT OF LIVES!',
                 style: TextStyle(
                   color: AppTheme.accentCoral,
                   fontSize: 22,
@@ -1391,7 +1321,7 @@ class _MaximMathState extends State<MaximMath>
               ),
               const SizedBox(height: 12),
               const Text(
-                'Buy 3 more attempts to continue playing this level without losing progress.',
+                'Buy 3 more lives to continue playing this level without losing progress.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: AppTheme.textSecondary,
@@ -1425,7 +1355,7 @@ class _MaximMathState extends State<MaximMath>
                       ),
                       SizedBox(width: 8),
                       Text(
-                        'BUY ATTEMPTS FOR 10 GEMS',
+                        'BUY 3 LIVES FOR 10 GEMS',
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w800,
@@ -1614,6 +1544,8 @@ class _MaximMathState extends State<MaximMath>
 
   String _getTopicTitle(String topicId) {
     switch (topicId) {
+      case GameId.basicOps:
+        return 'Basic Ops';
       case GameId.fractions:
         return 'Fractions Duel';
       case GameId.percentages:
@@ -1627,5 +1559,260 @@ class _MaximMathState extends State<MaximMath>
       default:
         return 'Math Duel';
     }
+  }
+}
+
+class MathOptionCard extends StatefulWidget {
+  final String expr;
+  final Color color;
+  final VoidCallback onTap;
+  final bool isSelected;
+  final bool? isCorrect;
+
+  const MathOptionCard({
+    super.key,
+    required this.expr,
+    required this.color,
+    required this.onTap,
+    required this.isSelected,
+    this.isCorrect,
+  });
+
+  @override
+  State<MathOptionCard> createState() => _MathOptionCardState();
+}
+
+class _MathOptionCardState extends State<MathOptionCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animCtrl;
+  late Animation<double> _shakeAnim;
+
+  bool _isPressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _animCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+
+    _shakeAnim = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 8.0), weight: 20),
+      TweenSequenceItem(tween: Tween(begin: 8.0, end: -8.0), weight: 20),
+      TweenSequenceItem(tween: Tween(begin: -8.0, end: 6.0), weight: 20),
+      TweenSequenceItem(tween: Tween(begin: 6.0, end: -4.0), weight: 20),
+      TweenSequenceItem(tween: Tween(begin: -4.0, end: 0.0), weight: 20),
+    ]).animate(CurvedAnimation(parent: _animCtrl, curve: Curves.linear));
+  }
+
+  @override
+  void didUpdateWidget(covariant MathOptionCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isSelected && !oldWidget.isSelected) {
+      _animCtrl.forward(from: 0.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _animCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isWrong = widget.isSelected && widget.isCorrect == false;
+    final isRight = widget.isCorrect == true;
+
+    Color cardBgColor = widget.color.withOpacity(0.08);
+    Color borderColor = widget.color.withOpacity(0.4);
+
+    if (widget.isCorrect != null) {
+      if (isRight) {
+        cardBgColor = AppTheme.accentMint.withOpacity(0.12);
+        borderColor = AppTheme.accentMint;
+      } else if (isWrong) {
+        cardBgColor = AppTheme.accentCoral.withOpacity(0.12);
+        borderColor = AppTheme.accentCoral;
+      }
+    }
+
+    return GestureDetector(
+      onTapDown: (_) {
+        setState(() {
+          _isPressed = true;
+        });
+      },
+      onTapUp: (_) {
+        setState(() {
+          _isPressed = false;
+        });
+        widget.onTap();
+      },
+      onTapCancel: () {
+        setState(() {
+          _isPressed = false;
+        });
+      },
+      child: AnimatedBuilder(
+        animation: _animCtrl,
+        builder: (context, child) {
+          double offsetX = isWrong ? _shakeAnim.value : 0.0;
+          double scale = 1.0;
+
+          if (_isPressed) {
+            scale = 0.94;
+          } else if (widget.isSelected && isRight) {
+            scale = 1.0 + (math.sin(_animCtrl.value * math.pi) * 0.06);
+          }
+
+          return Transform.translate(
+            offset: Offset(offsetX, 0.0),
+            child: Transform.scale(
+              scale: scale,
+              child: child,
+            ),
+          );
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            color: cardBgColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: borderColor,
+              width: widget.isSelected ? 2.5 : 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: (widget.isCorrect != null
+                        ? (isRight ? AppTheme.accentMint : AppTheme.accentCoral)
+                        : widget.color)
+                    .withOpacity(widget.isSelected ? 0.2 : 0.05),
+                blurRadius: widget.isSelected ? 14 : 8,
+              ),
+            ],
+          ),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: _buildNumberText(widget.expr, widget.color),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNumberText(String expr, Color color) {
+    final ts = const TextStyle(
+      fontSize: 24,
+      fontWeight: FontWeight.w800,
+      color: AppTheme.textPrimary,
+    );
+
+    if (expr.contains('/')) {
+      final p = expr.split('/');
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(p[0], style: ts),
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 4),
+            width: 32,
+            height: 2,
+            color: AppTheme.textPrimary,
+          ),
+          Text(p[1], style: ts),
+        ],
+      );
+    }
+
+    if (expr.contains('^')) {
+      final p = expr.split('^');
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(p[0], style: ts),
+              Transform.translate(
+                offset: const Offset(1, -10),
+                child: Text(p[1], style: ts.copyWith(fontSize: 15)),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    if (expr.contains('%')) {
+      final p = expr.split(' ');
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(p[0], style: ts.copyWith(fontSize: 20)),
+          Text('of ${p[2]}', style: ts.copyWith(fontSize: 14)),
+        ],
+      );
+    }
+
+    if (expr.contains('√')) {
+      final idx = expr.indexOf('√');
+      final coef = expr.substring(0, idx);
+      final inside = expr.substring(idx + 1);
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (coef != '1') Text(coef, style: ts),
+              Text('√', style: ts.copyWith(fontSize: 28)),
+              Text(inside, style: ts),
+            ],
+          ),
+        ],
+      );
+    }
+
+    final measUnits = [
+      'km', 'm', 'cm', 'mm', 't', 'kg', 'g', 'mg',
+      'kL', 'L', 'dL', 'mL', 'days', 'hours', 'mins', 'secs'
+    ];
+    if (measUnits.any((u) => expr.endsWith(' $u'))) {
+      final parts = expr.split(' ');
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(parts[0], style: ts),
+          Text(
+            parts.sublist(1).join(' '),
+            style: ts.copyWith(fontSize: 16, color: color),
+          ),
+        ],
+      );
+    }
+
+    if (expr.contains('+') ||
+        expr.contains('-') ||
+        expr.contains('*') ||
+        expr.contains('/')) {
+      final parts = expr.split(' ');
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(parts[0], style: ts.copyWith(fontSize: 18)),
+          Text(parts[1], style: ts.copyWith(fontSize: 20, color: color)),
+          Text(parts[2], style: ts.copyWith(fontSize: 18)),
+        ],
+      );
+    }
+
+    return Text(expr, style: ts);
   }
 }
