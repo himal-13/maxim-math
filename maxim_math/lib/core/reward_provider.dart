@@ -30,8 +30,4 @@ class RewardProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-
-  static int coinsForScore(int score) {
-    return score ~/ 10;
-  }
 }

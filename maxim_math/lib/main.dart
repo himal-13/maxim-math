@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
-import 'core/coin_service.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'core/health_service.dart';
 import 'core/score_provider.dart';
 import 'core/reward_provider.dart';
 import 'core/audio_manager.dart';
@@ -10,10 +11,11 @@ import 'maxim_math.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await MobileAds.instance.initialize();
   await Hive.initFlutter();
 
-  final coinService = CoinService();
-  await coinService.init();
+  final healthService = HealthService();
+  await healthService.init();
 
   final scoreProvider = ScoreProvider();
   await scoreProvider.init();
@@ -26,7 +28,7 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider.value(value: coinService),
+        ChangeNotifierProvider.value(value: healthService),
         ChangeNotifierProvider.value(value: scoreProvider),
         ChangeNotifierProvider.value(value: rewardProvider),
       ],
@@ -65,15 +67,6 @@ class MathDashboard extends StatefulWidget {
 }
 
 class _MathDashboardState extends State<MathDashboard> {
-  void _openExchangeDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return const GemExchangeDialog();
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final basicTopics = [
@@ -169,11 +162,17 @@ class _MathDashboardState extends State<MathDashboard> {
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          Expanded(child: _buildSmallTopicItem(advanceTopics[0])),
+                          Expanded(
+                            child: _buildSmallTopicItem(advanceTopics[0]),
+                          ),
                           const SizedBox(width: 10),
-                          Expanded(child: _buildSmallTopicItem(advanceTopics[1])),
+                          Expanded(
+                            child: _buildSmallTopicItem(advanceTopics[1]),
+                          ),
                           const SizedBox(width: 10),
-                          Expanded(child: _buildSmallTopicItem(advanceTopics[2])),
+                          Expanded(
+                            child: _buildSmallTopicItem(advanceTopics[2]),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 30),
@@ -189,103 +188,27 @@ class _MathDashboardState extends State<MathDashboard> {
   }
 
   Widget _buildTopBar() {
-    return Consumer<CoinService>(
-      builder: (ctx, cs, _) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Row(
-              children: [
-                Icon(
-                  Icons.school_rounded,
-                  color: AppTheme.accentTeal,
-                  size: 26,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.school_rounded, color: AppTheme.accentTeal, size: 26),
+              SizedBox(width: 8),
+              Text(
+                'Maxim Math',
+                style: TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
                 ),
-                SizedBox(width: 8),
-                Text(
-                  'Maxim Math',
-                  style: TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                // Coins
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: AppTheme.glassCard(
-                    borderColor: AppTheme.gold.withOpacity(0.3),
-                    radius: 20,
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.toll_rounded,
-                        color: AppTheme.gold,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${cs.coins}',
-                        style: const TextStyle(
-                          color: AppTheme.gold,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Gems
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: AppTheme.glassCard(
-                    borderColor: AppTheme.gem.withOpacity(0.3),
-                    radius: 20,
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.diamond_rounded,
-                        color: AppTheme.gem,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${cs.gems}',
-                        style: const TextStyle(
-                          color: AppTheme.gem,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Exchange
-                IconButton(
-                  onPressed: _openExchangeDialog,
-                  icon: const Icon(Icons.swap_horizontal_circle_outlined),
-                  color: AppTheme.accentTeal,
-                  tooltip: 'Exchange Coins for Gems',
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -322,87 +245,176 @@ class _MathDashboardState extends State<MathDashboard> {
   }
 
   Widget _buildSmallTopicItem(_TopicInfo topic) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => MaximMath(topicId: topic.id),
+    return Consumer<HealthService>(
+      builder: (context, hs, _) {
+        final attempts = hs.getAttempts(topic.id);
+        final hasZeroHealth = attempts == 0;
+
+        return GestureDetector(
+          onTap: () {
+            if (hasZeroHealth) {
+              _showRefillDialog(topic.id, topic.title);
+            } else {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => MaximMath(topicId: topic.id),
+                ),
+              );
+            }
+          },
+          child: Container(
+            height: 125,
+            decoration: AppTheme.glassCard(
+              borderColor: hasZeroHealth
+                  ? AppTheme.accentCoral.withOpacity(0.4)
+                  : topic.color.withOpacity(0.2),
+              radius: 20,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: (hasZeroHealth ? AppTheme.accentCoral : topic.color)
+                        .withOpacity(0.12),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color:
+                          (hasZeroHealth ? AppTheme.accentCoral : topic.color)
+                              .withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    hasZeroHealth ? Icons.heart_broken_rounded : topic.icon,
+                    color: hasZeroHealth ? AppTheme.accentCoral : topic.color,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  topic.title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                _buildHealthIndicator(attempts),
+              ],
+            ),
           ),
         );
       },
-      child: Container(
-        height: 110,
-        decoration: AppTheme.glassCard(
-          borderColor: topic.color.withOpacity(0.2),
-          radius: 20,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: topic.color.withOpacity(0.12),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: topic.color.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: Icon(
-                topic.icon,
-                color: topic.color,
-                size: 22,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              topic.title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppTheme.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.2,
-              ),
-            ),
-          ],
-        ),
-      ),
+    );
+  }
+
+  Widget _buildHealthIndicator(int attempts) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(5, (index) {
+        return Icon(
+          index < attempts
+              ? Icons.favorite_rounded
+              : Icons.favorite_border_rounded,
+          color: AppTheme.accentCoral,
+          size: 11,
+        );
+      }),
+    );
+  }
+
+  void _showRefillDialog(String topicId, String topicTitle) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return RefillHealthDialog(topicId: topicId, topicTitle: topicTitle);
+      },
     );
   }
 }
 
-class GemExchangeDialog extends StatefulWidget {
-  const GemExchangeDialog({super.key});
+class RefillHealthDialog extends StatefulWidget {
+  final String topicId;
+  final String topicTitle;
+
+  const RefillHealthDialog({
+    super.key,
+    required this.topicId,
+    required this.topicTitle,
+  });
 
   @override
-  State<GemExchangeDialog> createState() => _GemExchangeDialogState();
+  State<RefillHealthDialog> createState() => _RefillHealthDialogState();
 }
 
-class _GemExchangeDialogState extends State<GemExchangeDialog> {
-  void _exchange(int coins, int gems) {
-    final cs = Provider.of<CoinService>(context, listen: false);
-    if (cs.exchangeCoinsForGems(coins, gems)) {
-      AudioManager.playCoin();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Successfully exchanged $coins Coins for $gems Gems!'),
-          backgroundColor: AppTheme.accentMint,
-        ),
-      );
-      Navigator.pop(context);
+class _RefillHealthDialogState extends State<RefillHealthDialog> {
+  bool _isLoadingAd = false;
+
+  void _watchAd() {
+    final hs = Provider.of<HealthService>(context, listen: false);
+    if (!hs.isAdReady) {
+      setState(() {
+        _isLoadingAd = true;
+      });
+      hs.loadRewardedAd();
+      // Wait to see if ad loads
+      Future.delayed(const Duration(seconds: 2), () {
+        if (!mounted) return;
+        if (hs.isAdReady) {
+          setState(() {
+            _isLoadingAd = false;
+          });
+          _showAd(hs);
+        } else {
+          setState(() {
+            _isLoadingAd = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Failed to load rewarded ad. Please try again later.',
+              ),
+              backgroundColor: AppTheme.accentCoral,
+            ),
+          );
+        }
+      });
     } else {
-      AudioManager.playWrong();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Not enough coins to exchange!'),
-          backgroundColor: AppTheme.accentCoral,
-        ),
-      );
+      _showAd(hs);
     }
+  }
+
+  void _showAd(HealthService hs) {
+    hs.showRewardedAd(
+      topicId: widget.topicId,
+      onRewardEarned: () {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Health fully restored for ${widget.topicTitle}!'),
+            backgroundColor: AppTheme.accentMint,
+          ),
+        );
+        Navigator.pop(context); // Close dialog
+      },
+      onAdFailed: () {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to play rewarded ad. Please try again.'),
+            backgroundColor: AppTheme.accentCoral,
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -412,30 +424,31 @@ class _GemExchangeDialogState extends State<GemExchangeDialog> {
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: AppTheme.glassCard(
-          borderColor: AppTheme.gem.withOpacity(0.3),
+          borderColor: AppTheme.accentCoral.withOpacity(0.4),
           radius: 24,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(
-              Icons.swap_horizontal_circle_rounded,
-              color: AppTheme.gem,
+              Icons.favorite_rounded,
+              color: AppTheme.accentCoral,
               size: 48,
             ),
             const SizedBox(height: 14),
-            const Text(
-              'GEM EXCHANGE',
-              style: TextStyle(
+            Text(
+              '${widget.topicTitle.toUpperCase()} HEALTH',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
                 color: AppTheme.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 10),
             const Text(
-              'Exchange your hard-earned level coins to buy gems for attempts!',
+              'You have run out of health for this topic. Watch a rewarded ad to fully restore health (5 lives) and play!',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: AppTheme.textSecondary,
@@ -444,14 +457,36 @@ class _GemExchangeDialogState extends State<GemExchangeDialog> {
               ),
             ),
             const SizedBox(height: 24),
-            _exchangeOption(100, 10),
-            const SizedBox(height: 12),
-            _exchangeOption(250, 30),
-            const SizedBox(height: 24),
+            if (_isLoadingAd)
+              const CircularProgressIndicator(color: AppTheme.accentCoral)
+            else
+              GestureDetector(
+                onTap: _watchAd,
+                child: Container(
+                  height: 50,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    gradient: AppTheme.tealGradient(),
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      'WATCH REWARDED AD',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 14),
             GestureDetector(
               onTap: () => Navigator.pop(context),
-              child: Text(
-                'CLOSE',
+              child: const Text(
+                'CANCEL',
                 style: TextStyle(
                   color: AppTheme.textHint,
                   fontSize: 13,
@@ -462,71 +497,6 @@ class _GemExchangeDialogState extends State<GemExchangeDialog> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _exchangeOption(int coins, int gems) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.textSecondary.withOpacity(0.1)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Text(
-                '$coins',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.gold,
-                  fontSize: 16,
-                ),
-              ),
-              const SizedBox(width: 4),
-              const Icon(Icons.toll_rounded, color: AppTheme.gold, size: 16),
-              const SizedBox(width: 10),
-              const Icon(
-                Icons.arrow_forward_rounded,
-                color: AppTheme.textSecondary,
-                size: 14,
-              ),
-              const SizedBox(width: 10),
-              Text(
-                '$gems',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.gem,
-                  fontSize: 16,
-                ),
-              ),
-              const SizedBox(width: 4),
-              const Icon(Icons.diamond_rounded, color: AppTheme.gem, size: 16),
-            ],
-          ),
-          GestureDetector(
-            onTap: () => _exchange(coins, gems),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                gradient: AppTheme.gemGradient(),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Text(
-                'EXCHANGE',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 11,
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

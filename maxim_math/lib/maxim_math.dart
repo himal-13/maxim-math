@@ -6,7 +6,8 @@ import 'core/audio_manager.dart';
 import 'core/reward_provider.dart';
 import 'core/score_provider.dart';
 import 'core/app_theme.dart';
-import 'core/coin_service.dart';
+import 'core/health_service.dart';
+import 'main.dart';
 
 class MaximMath extends StatefulWidget {
   final String topicId;
@@ -88,13 +89,14 @@ class _MaximMathState extends State<MaximMath>
   }
 
   void _startGame() {
+    final hs = Provider.of<HealthService>(context, listen: false);
     setState(() {
       _isGameActive = true;
       _isGameOver = false;
       _levelCompleted = false;
       _showBuyAttemptsDialog = false;
       _score = 0;
-      _attemptsLeft = _isInfinityMode ? 5 : 5;
+      _attemptsLeft = hs.getAttempts(widget.topicId);
       _streak = 0;
       _correctAnswersLevel = 0;
       _correctAnswersTotal = 0;
@@ -145,8 +147,10 @@ class _MaximMathState extends State<MaximMath>
   void _handleTimeout() {
     _stopAllTimers();
     AudioManager.playWrong();
+    final hs = Provider.of<HealthService>(context, listen: false);
     setState(() {
       _attemptsLeft--;
+      hs.setAttempts(widget.topicId, _attemptsLeft);
       _streak = 0;
       _feedback = 'Too slow!';
       _feedbackCorrect = false;
@@ -671,8 +675,10 @@ class _MaximMathState extends State<MaximMath>
       });
     } else {
       AudioManager.playWrong();
+      final hs = Provider.of<HealthService>(context, listen: false);
       setState(() {
         _attemptsLeft--;
+        hs.setAttempts(widget.topicId, _attemptsLeft);
         _streak = 0;
         _feedback = 'Wrong!';
         _feedbackCorrect = false;
@@ -705,14 +711,6 @@ class _MaximMathState extends State<MaximMath>
     _stopAllTimers();
     AudioManager.playLevelUp();
 
-    // Give coins and gems as reward
-    final coinsReward = _currentLevel * 10;
-    final gemsReward = _currentLevel * 2;
-
-    final cs = Provider.of<CoinService>(context, listen: false);
-    cs.addCoins(coinsReward);
-    cs.addGems(gemsReward);
-
     // Save progression
     final rp = Provider.of<RewardProvider>(context, listen: false);
     rp.saveTopicLevel(widget.topicId, _currentLevel + 1);
@@ -722,32 +720,64 @@ class _MaximMathState extends State<MaximMath>
     });
   }
 
-  void _buyAttempts() {
-    final cs = Provider.of<CoinService>(context, listen: false);
-
-    // Cost: 10 Gems for 3 Attempts
-    if (cs.useGems(10)) {
-      AudioManager.playCoin();
+  bool _isRefillingAd = false;
+  void _watchRefillAd() {
+    final hs = Provider.of<HealthService>(context, listen: false);
+    if (!hs.isAdReady) {
       setState(() {
-        _attemptsLeft = 3;
-        _showBuyAttemptsDialog = false;
-        _feedback = null;
-        _selectedIndex = null;
-        _timeLeft = 10;
+        _isRefillingAd = true;
       });
-      _generateQuestion();
-      _startTimer();
+      hs.loadRewardedAd();
+      Future.delayed(const Duration(seconds: 2), () {
+        if (!mounted) return;
+        if (hs.isAdReady) {
+          setState(() {
+            _isRefillingAd = false;
+          });
+          _showRefillAd(hs);
+        } else {
+          setState(() {
+            _isRefillingAd = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to load rewarded ad. Please try again later.'),
+              backgroundColor: AppTheme.accentCoral,
+            ),
+          );
+        }
+      });
     } else {
-      // Show failure prompt
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Not enough gems! Go to exchange coins in Menu or play levels.',
-          ),
-          backgroundColor: AppTheme.accentCoral,
-        ),
-      );
+      _showRefillAd(hs);
     }
+  }
+
+  void _showRefillAd(HealthService hs) {
+    hs.showRewardedAd(
+      topicId: widget.topicId,
+      onRewardEarned: () {
+        if (!mounted) return;
+        AudioManager.playCoin();
+        setState(() {
+          _attemptsLeft = 5;
+          _showBuyAttemptsDialog = false;
+          _feedback = null;
+          _selectedIndex = null;
+          _timeLeft = 10;
+        });
+        _generateQuestion();
+        _startTimer();
+      },
+      onAdFailed: () {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to play rewarded ad. Please try again.'),
+            backgroundColor: AppTheme.accentCoral,
+          ),
+        );
+      },
+    );
   }
 
   void _gameOver() {
@@ -755,14 +785,7 @@ class _MaximMathState extends State<MaximMath>
     AudioManager.playGameOver();
 
     final sp = Provider.of<ScoreProvider>(context, listen: false);
-    final cs = Provider.of<CoinService>(context, listen: false);
-
     sp.submitScore(widget.topicId, _score);
-    final earned = CoinService.coinsForScore(_score);
-    if (earned > 0) {
-      cs.addCoins(earned);
-      AudioManager.playCoin();
-    }
 
     if (_score > _highScore) {
       _highScore = _score;
@@ -779,7 +802,6 @@ class _MaximMathState extends State<MaximMath>
     setState(() {
       _currentLevel++;
       _correctAnswersLevel = 0;
-      _attemptsLeft = 5;
       _levelCompleted = false;
       _feedback = null;
       _timeLeft = 10;
@@ -791,6 +813,25 @@ class _MaximMathState extends State<MaximMath>
   void _backToMenu() {
     _stopAllTimers();
     Navigator.pop(context);
+  }
+
+  void _showGameOverRefillDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return RefillHealthDialog(
+          topicId: widget.topicId,
+          topicTitle: _getTopicTitle(widget.topicId),
+        );
+      },
+    ).then((_) {
+      if (!mounted) return;
+      final hs = Provider.of<HealthService>(context, listen: false);
+      if (hs.getAttempts(widget.topicId) > 0) {
+        _startGame();
+      }
+    });
   }
 
   @override
@@ -819,7 +860,7 @@ class _MaximMathState extends State<MaximMath>
           ),
         ),
         centerTitle: true,
-        actions: [_buildCoinAndGemBadge()],
+        actions: null,
       ),
       body: Container(
         decoration: BoxDecoration(gradient: AppTheme.backgroundGradient),
@@ -849,62 +890,6 @@ class _MaximMathState extends State<MaximMath>
             if (_isGameOver) _buildGameOverOverlay(),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildCoinAndGemBadge() {
-    return Consumer<CoinService>(
-      builder: (ctx, cs, _) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: AppTheme.glassCard(
-              borderColor: AppTheme.gold.withOpacity(0.3),
-              radius: 20,
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.toll_rounded, color: AppTheme.gold, size: 16),
-                const SizedBox(width: 4),
-                Text(
-                  '${cs.coins}',
-                  style: const TextStyle(
-                    color: AppTheme.gold,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: AppTheme.glassCard(
-              borderColor: AppTheme.gem.withOpacity(0.3),
-              radius: 20,
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.diamond_rounded,
-                  color: AppTheme.gem,
-                  size: 16,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '${cs.gems}',
-                  style: const TextStyle(
-                    color: AppTheme.gem,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 14),
-        ],
       ),
     );
   }
@@ -1132,9 +1117,6 @@ class _MaximMathState extends State<MaximMath>
   }
 
   Widget _buildLevelCompletedOverlay() {
-    final coinsReward = _currentLevel * 10;
-    final gemsReward = _currentLevel * 2;
-
     return Container(
       color: Colors.black.withOpacity(0.85),
       child: Center(
@@ -1172,85 +1154,6 @@ class _MaximMathState extends State<MaximMath>
                     color: AppTheme.textSecondary,
                     fontSize: 14,
                   ),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'REWARDS RECEIVED',
-                  style: TextStyle(
-                    color: AppTheme.textHint,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppTheme.gold.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: AppTheme.gold.withOpacity(0.3),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.toll_rounded,
-                            color: AppTheme.gold,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '+$coinsReward',
-                            style: const TextStyle(
-                              color: AppTheme.gold,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 18,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppTheme.gem.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: AppTheme.gem.withOpacity(0.3),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.diamond_rounded,
-                            color: AppTheme.gem,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '+$gemsReward',
-                            style: const TextStyle(
-                              color: AppTheme.gem,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 18,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
                 ),
                 const SizedBox(height: 32),
                 GestureDetector(
@@ -1321,7 +1224,7 @@ class _MaximMathState extends State<MaximMath>
               ),
               const SizedBox(height: 12),
               const Text(
-                'Buy 3 more lives to continue playing this level without losing progress.',
+                'Watch a rewarded ad to fully restore health (5 lives) and continue playing this level without losing progress.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: AppTheme.textSecondary,
@@ -1331,38 +1234,49 @@ class _MaximMathState extends State<MaximMath>
               ),
               const SizedBox(height: 28),
               GestureDetector(
-                onTap: _buyAttempts,
+                onTap: _watchRefillAd,
                 child: Container(
                   height: 52,
                   decoration: BoxDecoration(
-                    gradient: AppTheme.gemGradient(),
+                    gradient: AppTheme.tealGradient(),
                     borderRadius: BorderRadius.circular(26),
                     boxShadow: [
                       BoxShadow(
-                        color: AppTheme.gem.withOpacity(0.3),
+                        color: AppTheme.accentTeal.withOpacity(0.3),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
                     ],
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.diamond_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        'BUY 3 LIVES FOR 10 GEMS',
-                        style: TextStyle(
+                      if (_isRefillingAd)
+                        const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      else ...[
+                        const Icon(
+                          Icons.play_circle_fill_rounded,
                           color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                          letterSpacing: 0.5,
+                          size: 20,
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'WATCH AD TO REFILL',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -1400,8 +1314,6 @@ class _MaximMathState extends State<MaximMath>
   }
 
   Widget _buildGameOverOverlay() {
-    final earned = CoinService.coinsForScore(_score);
-
     return Container(
       color: Colors.black.withOpacity(0.85),
       child: Center(
@@ -1458,26 +1370,6 @@ class _MaximMathState extends State<MaximMath>
                 ),
               ),
               const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.toll_rounded,
-                    color: AppTheme.gold,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '+$earned coins',
-                    style: const TextStyle(
-                      color: AppTheme.gold,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
               Text(
                 '$_correctAnswersTotal correct answers',
                 style: const TextStyle(color: AppTheme.textHint, fontSize: 13),
@@ -1513,7 +1405,14 @@ class _MaximMathState extends State<MaximMath>
                   const SizedBox(width: 12),
                   Expanded(
                     child: GestureDetector(
-                      onTap: _startGame,
+                      onTap: () {
+                        final hs = Provider.of<HealthService>(context, listen: false);
+                        if (hs.getAttempts(widget.topicId) == 0) {
+                          _showGameOverRefillDialog();
+                        } else {
+                          _startGame();
+                        }
+                      },
                       child: Container(
                         height: 48,
                         decoration: BoxDecoration(
